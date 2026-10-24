@@ -6,6 +6,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 // Physics and dimensions
@@ -31,8 +32,8 @@ var (
 )
 
 type Game struct {
-	player *Player
-	ground *ebiten.Image
+	player    *Player
+	platforms []rect
 }
 
 type Player struct {
@@ -44,6 +45,18 @@ type Player struct {
 	h        float64
 	img      *ebiten.Image
 	onGround bool
+}
+
+func (p *Player) rect() rect {
+	return rect{p.x, p.y, p.w, p.h}
+}
+
+type rect struct {
+	x, y, w, h float64
+}
+
+func (a rect) overlaps(b rect) bool {
+	return (a.x < b.x+b.w) && (a.x+a.w > b.x) && (a.y < b.y+b.h) && (a.y+a.h > b.y)
 }
 
 func newPlayer(x, y float64) *Player {
@@ -73,10 +86,12 @@ func (g *Game) Update() error {
 	g.player.y += g.player.vy
 	g.player.onGround = false
 
-	if g.player.y >= floorY {
-		g.player.y = floorY
-		g.player.vy = 0
-		g.player.onGround = true
+	for _, platform := range g.platforms {
+		if g.player.rect().overlaps(platform) && g.player.vy > 0 {
+			g.player.y = platform.y - g.player.h
+			g.player.vy = 0
+			g.player.onGround = true
+		}
 	}
 
 	// Jump
@@ -90,10 +105,9 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(skyColor)
 
-	groundOpts := &ebiten.DrawImageOptions{}
-	groundOpts.GeoM.Translate(0, screenHeight-groundHeight)
-
-	screen.DrawImage(g.ground, groundOpts)
+	for _, p := range g.platforms {
+		vector.FillRect(screen, float32(p.x), float32(p.y), float32(p.w), float32(p.h), groundColor, false)
+	}
 
 	opts := &ebiten.DrawImageOptions{}
 	opts.GeoM.Translate(g.player.x, g.player.y)
@@ -113,10 +127,13 @@ func main() {
 
 	game := &Game{
 		player: player,
-		ground: ebiten.NewImage(screenWidth, groundHeight),
+		platforms: []rect{
+			{0, screenHeight - groundHeight, screenWidth, groundHeight}, // Floor
+			{100, 280, 120, 8}, // Platform
+			{320, 200, 100, 8}, // Platform
+			{480, 140, 80, 8},  // Platform
+		},
 	}
-
-	game.ground.Fill(groundColor)
 
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
