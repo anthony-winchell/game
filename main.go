@@ -5,12 +5,15 @@ import (
 	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 )
 
 type Game struct {
-	playerX float64
-	playerY float64
-	player  *ebiten.Image
+	playerX   float64
+	playerY   float64
+	velocityY float64
+	player    *ebiten.Image
+	ground    *ebiten.Image
 }
 
 func (g *Game) Update() error {
@@ -23,14 +26,21 @@ func (g *Game) Update() error {
 		g.playerX -= 2
 	}
 
-	// Move up
-	if ebiten.IsKeyPressed(ebiten.KeyW) && g.playerY > 0 {
-		g.playerY -= 2
+	// Gravity
+	g.velocityY += 0.4
+	g.playerY += g.velocityY
+
+	// Floor collision
+	floorY := float64(360 - 42)
+
+	if g.playerY >= floorY {
+		g.playerY = floorY
+		g.velocityY = 0
 	}
 
-	// Move down
-	if ebiten.IsKeyPressed(ebiten.KeyS) && g.playerY < 360-32 {
-		g.playerY += 2
+	// Jump
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) && g.playerY >= floorY {
+		g.velocityY = -8
 	}
 
 	return nil
@@ -38,6 +48,11 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{135, 206, 235, 255})
+
+	groundOpts := &ebiten.DrawImageOptions{}
+	groundOpts.GeoM.Translate(0, 360-10)
+
+	screen.DrawImage(g.ground, groundOpts)
 
 	opts := &ebiten.DrawImageOptions{}
 	opts.GeoM.Translate(g.playerX, g.playerY)
@@ -55,8 +70,13 @@ func main() {
 
 	game := &Game{
 		player: ebiten.NewImage(32, 32),
+		ground: ebiten.NewImage(640, 10),
 	}
+
+	game.ground.Fill(color.RGBA{70, 170, 80, 255})
+
 	game.player.Fill(color.RGBA{220, 50, 50, 225})
+	game.playerY = 360 - 32
 
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
